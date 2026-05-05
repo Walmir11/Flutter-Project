@@ -6,12 +6,14 @@ import 'texto_padrao.dart';
 
 class TarefaItem extends StatelessWidget {
   final AtividadeEstudo atividade;
+  final VoidCallback onEditar;
   final VoidCallback onAbrirDetalhes;
   final VoidCallback onRemover;
 
   const TarefaItem({
     super.key,
     required this.atividade,
+    required this.onEditar,
     required this.onAbrirDetalhes,
     required this.onRemover,
   });
@@ -24,7 +26,7 @@ class TarefaItem extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: onAbrirDetalhes,
+        onTap: onEditar,
         child: Container(
           decoration: const BoxDecoration(
             border: Border(
@@ -74,6 +76,12 @@ class TarefaItem extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Ver detalhes',
+                  onPressed: onAbrirDetalhes,
+                  icon: const Icon(Icons.info_outline),
+                  color: colorScheme.primary,
                 ),
                 BotaoRemover(onPressed: onRemover),
               ],

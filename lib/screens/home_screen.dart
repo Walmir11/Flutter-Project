@@ -22,13 +22,15 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(builder: (context) => const CadastroScreen()),
     );
 
-    if (novaTarefa == null) {
+    if (!mounted || novaTarefa == null) {
       return;
     }
 
     setState(() {
       tarefas.add(novaTarefa);
     });
+
+    _mostrarMensagemSucesso('Atividade cadastrada com sucesso!');
   }
 
   void _abrirDetalhes(AtividadeEstudo atividade) {
@@ -38,6 +40,56 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context) => DetalhesScreen(atividade: atividade),
       ),
     );
+  }
+
+  Future<void> _abrirTelaEdicao(int index) async {
+    final tarefaEditada = await Navigator.push<AtividadeEstudo>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CadastroScreen(atividade: tarefas[index]),
+      ),
+    );
+
+    if (!mounted || tarefaEditada == null) {
+      return;
+    }
+
+    setState(() {
+      tarefas[index] = tarefaEditada;
+    });
+
+    _mostrarMensagemSucesso('Atividade atualizada com sucesso!');
+  }
+
+  Future<void> _confirmarRemocao(int index) async {
+    final tarefa = tarefas[index];
+    final deveRemover = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Remover atividade'),
+          content: Text('Deseja remover "${tarefa.titulo}" da sua agenda?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (deveRemover == true) {
+      _removerTarefa(index);
+    }
   }
 
   void _removerTarefa(int index) {
@@ -51,6 +103,30 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Text('Atividade removida: ${tarefaRemovida.titulo}'),
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _mostrarMensagemSucesso(String mensagem) {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    scaffoldMessenger.clearSnackBars();
+    scaffoldMessenger.showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF0F766E),
+        duration: const Duration(seconds: 4),
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                mensagem,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -119,17 +195,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       )
-                    : ListView.separated(
+                    : ListView.builder(
                         itemCount: tarefas.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final tarefa = tarefas[index];
 
-                          return TarefaItem(
-                            atividade: tarefa,
-                            onAbrirDetalhes: () => _abrirDetalhes(tarefa),
-                            onRemover: () => _removerTarefa(index),
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: TarefaItem(
+                              atividade: tarefa,
+                              onEditar: () => _abrirTelaEdicao(index),
+                              onAbrirDetalhes: () => _abrirDetalhes(tarefa),
+                              onRemover: () => _confirmarRemocao(index),
+                            ),
                           );
                         },
                       ),
