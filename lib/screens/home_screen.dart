@@ -1,39 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../controllers/atividades_controller.dart';
 import '../models/atividade_estudo.dart';
 import '../widgets/tarefa_item.dart';
 import '../widgets/texto_padrao.dart';
 import 'cadastro_screen.dart';
 import 'detalhes_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  final List<AtividadeEstudo> tarefas = [];
-
-  Future<void> _abrirTelaCadastro() async {
+  Future<void> _abrirTelaCadastro(BuildContext context) async {
     final novaTarefa = await Navigator.push<AtividadeEstudo>(
       context,
       MaterialPageRoute(builder: (context) => const CadastroScreen()),
     );
 
-    if (!mounted || novaTarefa == null) {
+    if (!context.mounted || novaTarefa == null) {
       return;
     }
 
-    setState(() {
-      tarefas.add(novaTarefa);
-    });
+    try {
+      await context.read<AtividadesController>().adicionar(novaTarefa);
 
-    _mostrarMensagemSucesso('Atividade cadastrada com sucesso!');
+      if (context.mounted) {
+        _mostrarMensagemSucesso(context, 'Atividade cadastrada com sucesso!');
+      }
+    } catch (_) {
+      if (context.mounted) {
+        _mostrarMensagemErro(
+          context,
+          'Não foi possível cadastrar a atividade.',
+        );
+      }
+    }
   }
 
-  void _abrirDetalhes(AtividadeEstudo atividade) {
+  void _abrirDetalhes(BuildContext context, AtividadeEstudo atividade) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -42,27 +46,41 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _abrirTelaEdicao(int index) async {
+  Future<void> _abrirTelaEdicao(
+    BuildContext context,
+    AtividadeEstudo atividade,
+  ) async {
     final tarefaEditada = await Navigator.push<AtividadeEstudo>(
       context,
       MaterialPageRoute(
-        builder: (context) => CadastroScreen(atividade: tarefas[index]),
+        builder: (context) => CadastroScreen(atividade: atividade),
       ),
     );
 
-    if (!mounted || tarefaEditada == null) {
+    if (!context.mounted || tarefaEditada == null) {
       return;
     }
 
-    setState(() {
-      tarefas[index] = tarefaEditada;
-    });
+    try {
+      await context.read<AtividadesController>().atualizar(tarefaEditada);
 
-    _mostrarMensagemSucesso('Atividade atualizada com sucesso!');
+      if (context.mounted) {
+        _mostrarMensagemSucesso(context, 'Atividade atualizada com sucesso!');
+      }
+    } catch (_) {
+      if (context.mounted) {
+        _mostrarMensagemErro(
+          context,
+          'Não foi possível atualizar a atividade.',
+        );
+      }
+    }
   }
 
-  Future<void> _confirmarRemocao(int index) async {
-    final tarefa = tarefas[index];
+  Future<void> _confirmarRemocao(
+    BuildContext context,
+    AtividadeEstudo tarefa,
+  ) async {
     final deveRemover = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -83,31 +101,38 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
 
-    if (!mounted) {
+    if (!context.mounted) {
       return;
     }
 
     if (deveRemover == true) {
-      _removerTarefa(index);
+      await _removerTarefa(context, tarefa);
     }
   }
 
-  void _removerTarefa(int index) {
-    final tarefaRemovida = tarefas[index];
+  Future<void> _removerTarefa(
+    BuildContext context,
+    AtividadeEstudo tarefa,
+  ) async {
+    try {
+      await context.read<AtividadesController>().remover(tarefa.id);
 
-    setState(() {
-      tarefas.removeAt(index);
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Atividade removida: ${tarefaRemovida.titulo}'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Atividade removida: ${tarefa.titulo}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        _mostrarMensagemErro(context, 'Não foi possível remover a atividade.');
+      }
+    }
   }
 
-  void _mostrarMensagemSucesso(String mensagem) {
+  void _mostrarMensagemSucesso(BuildContext context, String mensagem) {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     scaffoldMessenger.clearSnackBars();
@@ -131,9 +156,25 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _mostrarMensagemErro(BuildContext context, String mensagem) {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    scaffoldMessenger.clearSnackBars();
+    scaffoldMessenger.showSnackBar(
+      SnackBar(
+        backgroundColor: Theme.of(context).colorScheme.error,
+        duration: const Duration(seconds: 4),
+        content: Text(mensagem),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final total = context.select<AtividadesController, int>(
+      (controller) => controller.atividades.length,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Minha Agenda de Estudos')),
@@ -143,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _PainelResumo(total: tarefas.length),
+              _PainelResumo(total: total),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -157,64 +198,122 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   FilledButton.icon(
                     key: const Key('botaoAdicionarAtividade'),
-                    onPressed: _abrirTelaCadastro,
+                    onPressed: () => _abrirTelaCadastro(context),
                     icon: const Icon(Icons.add),
                     label: const Text('Adicionar'),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              Expanded(
-                child: tarefas.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 72,
-                              height: 72,
-                              decoration: BoxDecoration(
-                                color: colorScheme.secondary.withValues(
-                                  alpha: 0.12,
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.event_note,
-                                size: 34,
-                                color: colorScheme.secondary,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            const TextoPadrao(
-                              'Nenhuma atividade cadastrada.',
-                              fontSize: 16,
-                              color: Color(0xFF607D8B),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: tarefas.length,
-                        itemBuilder: (context, index) {
-                          final tarefa = tarefas[index];
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: TarefaItem(
-                              atividade: tarefa,
-                              onEditar: () => _abrirTelaEdicao(index),
-                              onAbrirDetalhes: () => _abrirDetalhes(tarefa),
-                              onRemover: () => _confirmarRemocao(index),
-                            ),
-                          );
-                        },
-                      ),
-              ),
+              Expanded(child: _ListaAtividades(homeScreen: this)),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ListaAtividades extends StatelessWidget {
+  final HomeScreen homeScreen;
+
+  const _ListaAtividades({required this.homeScreen});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<AtividadesController>();
+    final colorScheme = Theme.of(context).colorScheme;
+    final tarefas = controller.atividades;
+
+    if (controller.carregando) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (controller.erro != null && tarefas.isEmpty) {
+      return _EstadoErro(
+        mensagem: controller.erro!,
+        onTentarNovamente: controller.carregarAtividades,
+      );
+    }
+
+    if (tarefas.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: colorScheme.secondary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.event_note,
+                size: 34,
+                color: colorScheme.secondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const TextoPadrao(
+              'Nenhuma atividade cadastrada.',
+              fontSize: 16,
+              color: Color(0xFF607D8B),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: tarefas.length,
+      itemBuilder: (context, index) {
+        final tarefa = tarefas[index];
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: TarefaItem(
+            atividade: tarefa,
+            onEditar: () => homeScreen._abrirTelaEdicao(context, tarefa),
+            onAbrirDetalhes: () => homeScreen._abrirDetalhes(context, tarefa),
+            onRemover: () => homeScreen._confirmarRemocao(context, tarefa),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _EstadoErro extends StatelessWidget {
+  final String mensagem;
+  final VoidCallback onTentarNovamente;
+
+  const _EstadoErro({required this.mensagem, required this.onTentarNovamente});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline, size: 42, color: colorScheme.error),
+          const SizedBox(height: 12),
+          TextoPadrao(
+            mensagem,
+            fontSize: 16,
+            color: colorScheme.error,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onTentarNovamente,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Tentar novamente'),
+          ),
+        ],
       ),
     );
   }

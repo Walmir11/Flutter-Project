@@ -48,7 +48,8 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
     Navigator.pop(
       context,
-      AtividadeEstudo(
+      AtividadeEstudo.criar(
+        id: widget.atividade?.id,
         titulo: atividade,
         data: _dataSelecionada!,
         horario: _horarioSelecionado!,
