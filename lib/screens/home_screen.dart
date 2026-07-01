@@ -1,43 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../controllers/atividades_controller.dart';
+import '../controllers/tarefa_controller.dart';
 import '../models/atividade_estudo.dart';
 import '../widgets/tarefa_item.dart';
 import '../widgets/texto_padrao.dart';
 import 'cadastro_screen.dart';
 import 'detalhes_screen.dart';
+import 'login_screen.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class HomeScreen extends StatefulWidget {
+  final int usuarioId;
+  final String usuarioLogado;
 
-  Future<void> _abrirTelaCadastro(BuildContext context) async {
+  const HomeScreen({
+    super.key,
+    required this.usuarioId,
+    required this.usuarioLogado,
+  });
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    Future.microtask(() {
+      if (mounted) {
+        context.read<TarefaController>().carregar(widget.usuarioId);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _abrirTelaCadastro() async {
     final novaTarefa = await Navigator.push<AtividadeEstudo>(
       context,
       MaterialPageRoute(builder: (context) => const CadastroScreen()),
     );
 
-    if (!context.mounted || novaTarefa == null) {
+    if (!mounted || novaTarefa == null) {
       return;
     }
 
-    try {
-      await context.read<AtividadesController>().adicionar(novaTarefa);
+    await context.read<TarefaController>().adicionar(novaTarefa);
 
-      if (context.mounted) {
-        _mostrarMensagemSucesso(context, 'Atividade cadastrada com sucesso!');
-      }
-    } catch (_) {
-      if (context.mounted) {
-        _mostrarMensagemErro(
-          context,
-          'Não foi possível cadastrar a atividade.',
-        );
-      }
-    }
+    _mostrarMensagemSucesso('Atividade cadastrada com sucesso!');
   }
 
-  void _abrirDetalhes(BuildContext context, AtividadeEstudo atividade) {
+  void _abrirDetalhes(AtividadeEstudo atividade) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -46,41 +68,32 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _abrirTelaEdicao(
-    BuildContext context,
-    AtividadeEstudo atividade,
-  ) async {
+  Future<void> _abrirTelaEdicao(int index, bool concluida) async {
+    final tarefaController = context.read<TarefaController>();
+    final tarefaSelecionada = concluida
+        ? tarefaController.tarefasConcluidas[index]
+        : tarefaController.tarefas[index];
     final tarefaEditada = await Navigator.push<AtividadeEstudo>(
       context,
       MaterialPageRoute(
-        builder: (context) => CadastroScreen(atividade: atividade),
+        builder: (context) => CadastroScreen(atividade: tarefaSelecionada),
       ),
     );
 
-    if (!context.mounted || tarefaEditada == null) {
+    if (!mounted || tarefaEditada == null) {
       return;
     }
 
-    try {
-      await context.read<AtividadesController>().atualizar(tarefaEditada);
+    await tarefaController.editar(tarefaEditada);
 
-      if (context.mounted) {
-        _mostrarMensagemSucesso(context, 'Atividade atualizada com sucesso!');
-      }
-    } catch (_) {
-      if (context.mounted) {
-        _mostrarMensagemErro(
-          context,
-          'Não foi possível atualizar a atividade.',
-        );
-      }
-    }
+    _mostrarMensagemSucesso('Atividade atualizada com sucesso!');
   }
 
-  Future<void> _confirmarRemocao(
-    BuildContext context,
-    AtividadeEstudo tarefa,
-  ) async {
+  Future<void> _confirmarRemocao(int index, {required bool concluida}) async {
+    final tarefaController = context.read<TarefaController>();
+    final tarefa = concluida
+        ? tarefaController.tarefasConcluidas[index]
+        : tarefaController.tarefas[index];
     final deveRemover = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -101,38 +114,57 @@ class HomeScreen extends StatelessWidget {
       },
     );
 
-    if (!context.mounted) {
+    if (!mounted) {
       return;
     }
 
     if (deveRemover == true) {
-      await _removerTarefa(context, tarefa);
+      await _removerTarefa(index, concluida: concluida);
     }
   }
 
-  Future<void> _removerTarefa(
-    BuildContext context,
-    AtividadeEstudo tarefa,
-  ) async {
-    try {
-      await context.read<AtividadesController>().remover(tarefa.id);
+  Future<void> _removerTarefa(int index, {required bool concluida}) async {
+    final tarefaController = context.read<TarefaController>();
+    final tarefaRemovida = concluida
+        ? tarefaController.tarefasConcluidas[index]
+        : tarefaController.tarefas[index];
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Atividade removida: ${tarefa.titulo}'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (_) {
-      if (context.mounted) {
-        _mostrarMensagemErro(context, 'Não foi possível remover a atividade.');
-      }
+    await tarefaController.remover(index, concluida: concluida);
+
+    if (!mounted) {
+      return;
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Atividade removida: ${tarefaRemovida.titulo}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
-  void _mostrarMensagemSucesso(BuildContext context, String mensagem) {
+  Future<void> _concluirTarefa(int index) async {
+    final tarefaController = context.read<TarefaController>();
+    final titulo = tarefaController.tarefas[index].titulo;
+
+    await tarefaController.concluir(index);
+
+    if (!mounted) {
+      return;
+    }
+
+    _mostrarMensagemSucesso('Atividade concluída: $titulo');
+  }
+
+  void _sair() {
+    context.read<TarefaController>().sair();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  void _mostrarMensagemSucesso(String mensagem) {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     scaffoldMessenger.clearSnackBars();
@@ -156,87 +188,14 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _mostrarMensagemErro(BuildContext context, String mensagem) {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-    scaffoldMessenger.clearSnackBars();
-    scaffoldMessenger.showSnackBar(
-      SnackBar(
-        backgroundColor: Theme.of(context).colorScheme.error,
-        duration: const Duration(seconds: 4),
-        content: Text(mensagem),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildLista(List<AtividadeEstudo> lista, {required bool concluida}) {
     final colorScheme = Theme.of(context).colorScheme;
-    final total = context.select<AtividadesController, int>(
-      (controller) => controller.atividades.length,
-    );
+    final vazioTitulo = concluida
+        ? 'Nenhuma atividade concluída.'
+        : 'Nenhuma atividade pendente.';
+    final vazioIcon = concluida ? Icons.check_circle_outline : Icons.event_note;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Minha Agenda de Estudos')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _PainelResumo(total: total),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextoPadrao(
-                      'Próximas atividades',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  FilledButton.icon(
-                    key: const Key('botaoAdicionarAtividade'),
-                    onPressed: () => _abrirTelaCadastro(context),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Adicionar'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Expanded(child: _ListaAtividades(homeScreen: this)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ListaAtividades extends StatelessWidget {
-  final HomeScreen homeScreen;
-
-  const _ListaAtividades({required this.homeScreen});
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = context.watch<AtividadesController>();
-    final colorScheme = Theme.of(context).colorScheme;
-    final tarefas = controller.atividades;
-
-    if (controller.carregando) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (controller.erro != null && tarefas.isEmpty) {
-      return _EstadoErro(
-        mensagem: controller.erro!,
-        onTentarNovamente: controller.carregarAtividades,
-      );
-    }
-
-    if (tarefas.isEmpty) {
+    if (lista.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -248,17 +207,13 @@ class _ListaAtividades extends StatelessWidget {
                 color: colorScheme.secondary.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.event_note,
-                size: 34,
-                color: colorScheme.secondary,
-              ),
+              child: Icon(vazioIcon, size: 34, color: colorScheme.secondary),
             ),
             const SizedBox(height: 16),
-            const TextoPadrao(
-              'Nenhuma atividade cadastrada.',
+            TextoPadrao(
+              vazioTitulo,
               fontSize: 16,
-              color: Color(0xFF607D8B),
+              color: const Color(0xFF607D8B),
               textAlign: TextAlign.center,
             ),
           ],
@@ -267,62 +222,113 @@ class _ListaAtividades extends StatelessWidget {
     }
 
     return ListView.builder(
-      itemCount: tarefas.length,
+      itemCount: lista.length,
       itemBuilder: (context, index) {
-        final tarefa = tarefas[index];
+        final tarefa = lista[index];
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: TarefaItem(
             atividade: tarefa,
-            onEditar: () => homeScreen._abrirTelaEdicao(context, tarefa),
-            onAbrirDetalhes: () => homeScreen._abrirDetalhes(context, tarefa),
-            onRemover: () => homeScreen._confirmarRemocao(context, tarefa),
+            onEditar: () => _abrirTelaEdicao(index, concluida),
+            onAbrirDetalhes: () => _abrirDetalhes(tarefa),
+            onRemover: () => _confirmarRemocao(index, concluida: concluida),
+            onConcluir: concluida ? null : () => _concluirTarefa(index),
           ),
         );
       },
     );
   }
-}
-
-class _EstadoErro extends StatelessWidget {
-  final String mensagem;
-  final VoidCallback onTentarNovamente;
-
-  const _EstadoErro({required this.mensagem, required this.onTentarNovamente});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tarefaController = context.watch<TarefaController>();
+    final tarefas = tarefaController.tarefas;
+    final tarefasConcluidas = tarefaController.tarefasConcluidas;
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.error_outline, size: 42, color: colorScheme.error),
-          const SizedBox(height: 12),
-          TextoPadrao(
-            mensagem,
-            fontSize: 16,
-            color: colorScheme.error,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: onTentarNovamente,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Tentar novamente'),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Minha Agenda de Estudos'),
+        actions: [
+          IconButton(
+            key: const Key('botaoLogout'),
+            tooltip: 'Sair',
+            onPressed: _sair,
+            icon: const Icon(Icons.logout),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+          tabs: const [
+            Tab(text: 'Ativas'),
+            Tab(text: 'Concluídas'),
+          ],
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _PainelResumo(
+                usuarioLogado: widget.usuarioLogado,
+                totalPendentes: tarefas.length,
+                totalConcluidas: tarefasConcluidas.length,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextoPadrao(
+                      'Minhas atividades',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  FilledButton.icon(
+                    key: const Key('botaoAdicionarAtividade'),
+                    onPressed: _abrirTelaCadastro,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Adicionar'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: tarefaController.carregando
+                    ? const Center(child: CircularProgressIndicator())
+                    : TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildLista(tarefas, concluida: false),
+                          _buildLista(tarefasConcluidas, concluida: true),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
 class _PainelResumo extends StatelessWidget {
-  final int total;
+  final String usuarioLogado;
+  final int totalPendentes;
+  final int totalConcluidas;
 
-  const _PainelResumo({required this.total});
+  const _PainelResumo({
+    required this.usuarioLogado,
+    required this.totalPendentes,
+    required this.totalConcluidas,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -357,17 +363,24 @@ class _PainelResumo extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const TextoPadrao(
-                  'Plano de estudos',
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                TextoPadrao(
+                  'Resumo de estudos',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 TextoPadrao(
-                  'Total de atividades: $total',
-                  fontSize: 15,
-                  color: const Color(0xFFD7E6EF),
+                  'Usuário logado: $usuarioLogado',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.92),
+                ),
+                const SizedBox(height: 4),
+                TextoPadrao(
+                  'Pendentes: $totalPendentes • Concluídas: $totalConcluidas',
+                  fontSize: 14,
+                  color: Colors.white.withValues(alpha: 0.85),
                 ),
               ],
             ),

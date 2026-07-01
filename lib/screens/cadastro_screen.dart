@@ -15,6 +15,7 @@ class CadastroScreen extends StatefulWidget {
 class _CadastroScreenState extends State<CadastroScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _atividadeController = TextEditingController();
+  final TextEditingController _descricaoController = TextEditingController();
   DateTime? _dataSelecionada;
   TimeOfDay? _horarioSelecionado;
 
@@ -27,6 +28,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
     final atividade = widget.atividade;
     if (atividade != null) {
       _atividadeController.text = atividade.titulo;
+      _descricaoController.text = atividade.descricao;
       _dataSelecionada = atividade.data;
       _horarioSelecionado = atividade.horario;
     }
@@ -35,6 +37,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
   @override
   void dispose() {
     _atividadeController.dispose();
+    _descricaoController.dispose();
     super.dispose();
   }
 
@@ -45,29 +48,38 @@ class _CadastroScreenState extends State<CadastroScreen> {
     }
 
     final atividade = _atividadeController.text.trim();
+    final descricao = _descricaoController.text.trim();
 
     Navigator.pop(
       context,
-      AtividadeEstudo.criar(
+      AtividadeEstudo(
         id: widget.atividade?.id,
         titulo: atividade,
+        descricao: descricao,
         data: _dataSelecionada!,
         horario: _horarioSelecionado!,
+        concluida: widget.atividade?.concluida ?? false,
       ),
     );
   }
 
   Future<void> _selecionarData() async {
-    final hoje = DateTime.now();
-    final dataInicial = _dataSelecionada == null
-        ? hoje
-        : _maiorData(_dataSelecionada!, hoje);
-
+    final hoje = DateUtils.dateOnly(DateTime.now());
+    final dataAtual = _dataSelecionada == null
+        ? null
+        : DateUtils.dateOnly(_dataSelecionada!);
+    final primeiraData = dataAtual != null && dataAtual.isBefore(hoje)
+        ? dataAtual
+        : hoje;
+    final limitePadrao = DateTime(hoje.year + 3, hoje.month, hoje.day);
+    final ultimaData = dataAtual != null && dataAtual.isAfter(limitePadrao)
+        ? dataAtual
+        : limitePadrao;
     final dataEscolhida = await showDatePicker(
       context: context,
-      initialDate: dataInicial,
-      firstDate: hoje,
-      lastDate: DateTime(hoje.year + 3),
+      initialDate: dataAtual ?? hoje,
+      firstDate: primeiraData,
+      lastDate: ultimaData,
     );
 
     if (dataEscolhida == null) {
@@ -76,33 +88,16 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
     setState(() {
       _dataSelecionada = dataEscolhida;
-      if (_horarioJaPassou()) {
-        _horarioSelecionado = null;
-      }
     });
   }
 
   Future<void> _selecionarHorario() async {
     final horarioEscolhido = await showTimePicker(
       context: context,
-      initialTime: _horarioSelecionado ?? _horarioInicial(),
+      initialTime: _horarioSelecionado ?? TimeOfDay.now(),
     );
 
     if (horarioEscolhido == null) {
-      return;
-    }
-
-    if (_horarioJaPassouPara(horarioEscolhido)) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecione um horário que ainda não passou.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
       return;
     }
 
@@ -121,57 +116,6 @@ class _CadastroScreenState extends State<CadastroScreen> {
     final hora = horario.hour.toString().padLeft(2, '0');
     final minuto = horario.minute.toString().padLeft(2, '0');
     return '$hora:$minuto';
-  }
-
-  DateTime _maiorData(DateTime data, DateTime hoje) {
-    final dataSelecionada = DateUtils.dateOnly(data);
-    final dataHoje = DateUtils.dateOnly(hoje);
-
-    if (dataSelecionada.isBefore(dataHoje)) {
-      return hoje;
-    }
-
-    return data;
-  }
-
-  TimeOfDay _horarioInicial() {
-    if (_dataSelecionada != null &&
-        !_mesmaData(_dataSelecionada!, DateTime.now())) {
-      return TimeOfDay.now();
-    }
-
-    final agora = DateTime.now().add(const Duration(minutes: 1));
-    return TimeOfDay(hour: agora.hour, minute: agora.minute);
-  }
-
-  bool _mesmaData(DateTime primeiraData, DateTime segundaData) {
-    return primeiraData.year == segundaData.year &&
-        primeiraData.month == segundaData.month &&
-        primeiraData.day == segundaData.day;
-  }
-
-  bool _horarioJaPassou() {
-    if (_dataSelecionada == null || _horarioSelecionado == null) {
-      return false;
-    }
-
-    return _horarioJaPassouPara(_horarioSelecionado!);
-  }
-
-  bool _horarioJaPassouPara(TimeOfDay horario) {
-    if (_dataSelecionada == null) {
-      return false;
-    }
-
-    final dataHorario = DateTime(
-      _dataSelecionada!.year,
-      _dataSelecionada!.month,
-      _dataSelecionada!.day,
-      horario.hour,
-      horario.minute,
-    );
-
-    return dataHorario.isBefore(DateTime.now());
   }
 
   @override
@@ -250,6 +194,20 @@ class _CadastroScreenState extends State<CadastroScreen> {
                           },
                         ),
                         const SizedBox(height: 16),
+                        TextFormField(
+                          key: const Key('campoDescricaoAtividade'),
+                          controller: _descricaoController,
+                          minLines: 3,
+                          maxLines: 5,
+                          textInputAction: TextInputAction.newline,
+                          decoration: const InputDecoration(
+                            labelText: 'Descrição',
+                            hintText: 'Ex: Revisar widgets, Provider e SQLite',
+                            prefixIcon: Icon(Icons.notes),
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         FormField<DateTime>(
                           initialValue: _dataSelecionada,
                           validator: (_) {
@@ -283,10 +241,6 @@ class _CadastroScreenState extends State<CadastroScreen> {
                           validator: (_) {
                             if (_horarioSelecionado == null) {
                               return 'Selecione um horário para a atividade.';
-                            }
-
-                            if (_horarioJaPassou()) {
-                              return 'Selecione um horário que ainda não passou.';
                             }
 
                             return null;

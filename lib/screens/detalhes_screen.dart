@@ -58,6 +58,14 @@ class DetalhesScreen extends StatelessWidget {
                         titulo: 'Hora',
                         valor: atividade.horarioFormatado,
                       ),
+                      if (atividade.descricao.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        _LinhaDetalhe(
+                          icon: Icons.notes,
+                          titulo: 'Descrição',
+                          valor: atividade.descricao,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -121,17 +129,19 @@ class _LinhaDetalhe extends StatelessWidget {
           child: Icon(icon, color: colorScheme.primary),
         ),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextoPadrao(
-              titulo,
-              fontSize: 13,
-              color: colorScheme.secondary,
-              fontWeight: FontWeight.w600,
-            ),
-            TextoPadrao(valor, fontSize: 16, fontWeight: FontWeight.w600),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextoPadrao(
+                titulo,
+                fontSize: 13,
+                color: colorScheme.secondary,
+                fontWeight: FontWeight.w600,
+              ),
+              TextoPadrao(valor, fontSize: 16, fontWeight: FontWeight.w600),
+            ],
+          ),
         ),
       ],
     );

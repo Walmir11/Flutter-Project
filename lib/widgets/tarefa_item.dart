@@ -9,6 +9,7 @@ class TarefaItem extends StatelessWidget {
   final VoidCallback onEditar;
   final VoidCallback onAbrirDetalhes;
   final VoidCallback onRemover;
+  final VoidCallback? onConcluir;
 
   const TarefaItem({
     super.key,
@@ -16,11 +17,15 @@ class TarefaItem extends StatelessWidget {
     required this.onEditar,
     required this.onAbrirDetalhes,
     required this.onRemover,
+    this.onConcluir,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final borderColor = atividade.concluida
+        ? const Color(0xFF16A34A)
+        : const Color(0xFF0F766E);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -28,10 +33,8 @@ class TarefaItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         onTap: onEditar,
         child: Container(
-          decoration: const BoxDecoration(
-            border: Border(
-              left: BorderSide(color: Color(0xFF0F766E), width: 4),
-            ),
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: borderColor, width: 4)),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
@@ -41,10 +44,17 @@ class TarefaItem extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.08),
+                    color: atividade.concluida
+                        ? const Color(0xFFE7F5EC)
+                        : colorScheme.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(Icons.school, color: colorScheme.primary),
+                  child: Icon(
+                    atividade.concluida ? Icons.check_circle : Icons.school,
+                    color: atividade.concluida
+                        ? const Color(0xFF16A34A)
+                        : colorScheme.primary,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -83,6 +93,13 @@ class TarefaItem extends StatelessWidget {
                   icon: const Icon(Icons.info_outline),
                   color: colorScheme.primary,
                 ),
+                if (onConcluir != null)
+                  IconButton(
+                    tooltip: 'Concluir atividade',
+                    onPressed: onConcluir,
+                    icon: const Icon(Icons.check_circle_outline),
+                    color: const Color(0xFF16A34A),
+                  ),
                 BotaoRemover(onPressed: onRemover),
               ],
             ),

@@ -1,51 +1,64 @@
 import 'package:flutter/material.dart';
 
 class AtividadeEstudo {
-  final String id;
+  final int? id;
   final String titulo;
+  final String descricao;
   final DateTime data;
   final TimeOfDay horario;
+  final bool concluida;
 
   const AtividadeEstudo({
-    required this.id,
+    this.id,
     required this.titulo,
+    this.descricao = '',
     required this.data,
     required this.horario,
+    this.concluida = false,
   });
 
-  factory AtividadeEstudo.criar({
-    String? id,
-    required String titulo,
-    required DateTime data,
-    required TimeOfDay horario,
+  AtividadeEstudo copyWith({
+    int? id,
+    String? titulo,
+    String? descricao,
+    DateTime? data,
+    TimeOfDay? horario,
+    bool? concluida,
   }) {
     return AtividadeEstudo(
-      id: id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      titulo: titulo,
-      data: data,
-      horario: horario,
+      id: id ?? this.id,
+      titulo: titulo ?? this.titulo,
+      descricao: descricao ?? this.descricao,
+      data: data ?? this.data,
+      horario: horario ?? this.horario,
+      concluida: concluida ?? this.concluida,
     );
   }
 
-  factory AtividadeEstudo.fromMap(Map<String, dynamic> map) {
+  factory AtividadeEstudo.fromMap(Map<String, Object?> map) {
+    final horarioBanco = (map['horario_execucao'] as String).split(':');
+
     return AtividadeEstudo(
-      id: map['id'] as String,
-      titulo: map['titulo'] as String,
-      data: DateTime.fromMillisecondsSinceEpoch(map['data'] as int),
+      id: map['id'] as int?,
+      titulo: map['descricao'] as String,
+      descricao: map['descricao_detalhada'] as String? ?? '',
+      data: DateTime.parse(map['data_execucao'] as String),
       horario: TimeOfDay(
-        hour: map['hora'] as int,
-        minute: map['minuto'] as int,
+        hour: int.parse(horarioBanco[0]),
+        minute: int.parse(horarioBanco[1]),
       ),
+      concluida: map['situacao'] == 'Concluida',
     );
   }
 
-  Map<String, dynamic> toMap() {
+  Map<String, Object?> toMap({required int usuarioId}) {
     return {
-      'id': id,
-      'titulo': titulo,
-      'data': DateUtils.dateOnly(data).millisecondsSinceEpoch,
-      'hora': horario.hour,
-      'minuto': horario.minute,
+      'usuario_id': usuarioId,
+      'descricao': titulo,
+      'descricao_detalhada': descricao,
+      'data_execucao': _dataBanco,
+      'horario_execucao': horarioFormatado,
+      'situacao': concluida ? 'Concluida' : 'Pendente',
     };
   }
 
@@ -61,13 +74,9 @@ class AtividadeEstudo {
     return '$hora:$minuto';
   }
 
-  DateTime get dataHora {
-    return DateTime(
-      data.year,
-      data.month,
-      data.day,
-      horario.hour,
-      horario.minute,
-    );
+  String get _dataBanco {
+    final mes = data.month.toString().padLeft(2, '0');
+    final dia = data.day.toString().padLeft(2, '0');
+    return '${data.year}-$mes-$dia';
   }
 }
