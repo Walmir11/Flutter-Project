@@ -17,6 +17,16 @@ class AtividadeEstudo {
     this.concluida = false,
   });
 
+  DateTime get dataHora {
+    return DateTime(
+      data.year,
+      data.month,
+      data.day,
+      horario.hour,
+      horario.minute,
+    );
+  }
+
   AtividadeEstudo copyWith({
     int? id,
     String? titulo,
